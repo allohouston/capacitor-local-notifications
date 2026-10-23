@@ -108,11 +108,15 @@ If the device has entered [Doze](https://developer.android.com/training/monitori
 * [`addListener('localNotificationReceived', ...)`](#addlistenerlocalnotificationreceived-)
 * [`addListener('localNotificationActionPerformed', ...)`](#addlistenerlocalnotificationactionperformed-)
 * [`addListener('liveActivityEnded', ...)`](#addlistenerliveactivityended-)
+* [`addListener('liveActivityPushToken', ...)`](#addlistenerliveactivitypushtoken-)
+* [`addListener('liveActivityPushToStartToken', ...)`](#addlistenerliveactivitypushtostarttoken-)
 * [`removeAllListeners()`](#removealllisteners)
 * [`startLiveActivity(...)`](#startliveactivity)
 * [`updateLiveActivity(...)`](#updateliveactivity)
 * [`endLiveActivity(...)`](#endliveactivity)
 * [`getActiveLiveActivities()`](#getactiveliveactivities)
+* [`listLiveActivities()`](#listliveactivities)
+* [`observePushToStartToken()`](#observepushtostarttoken)
 * [Interfaces](#interfaces)
 * [Type Aliases](#type-aliases)
 * [Enums](#enums)
@@ -437,6 +441,57 @@ Listen for when a Live Activity timer ends.
 --------------------
 
 
+### addListener('liveActivityPushToken', ...)
+
+```typescript
+addListener(eventName: 'liveActivityPushToken', listenerFunc: (event: LiveActivityPushTokenEvent) => void) => Promise<PluginListenerHandle>
+```
+
+Listen for Live Activity push tokens.
+
+Emitted each time the per-activity APNs token changes after `startLiveActivity`
+(the activity is started with `pushType: .token`). Forward this token to the
+backend so it can update or end the activity remotely.
+
+Only available on iOS.
+
+| Param              | Type                                                                                                  |
+| ------------------ | ----------------------------------------------------------------------------------------------------- |
+| **`eventName`**    | <code>'liveActivityPushToken'</code>                                                                  |
+| **`listenerFunc`** | <code>(event: <a href="#liveactivitypushtokenevent">LiveActivityPushTokenEvent</a>) =&gt; void</code> |
+
+**Returns:** <code>Promise&lt;<a href="#pluginlistenerhandle">PluginListenerHandle</a>&gt;</code>
+
+**Since:** 7.1.0
+
+--------------------
+
+
+### addListener('liveActivityPushToStartToken', ...)
+
+```typescript
+addListener(eventName: 'liveActivityPushToStartToken', listenerFunc: (event: LiveActivityPushToStartTokenEvent) => void) => Promise<PluginListenerHandle>
+```
+
+Listen for the global push-to-start token (iOS 17.2+).
+
+Emitted after `observePushToStartToken()` each time the token rotates.
+The backend uses it to start a Live Activity while the app is not running.
+
+Only available on iOS 17.2+.
+
+| Param              | Type                                                                                                                |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------- |
+| **`eventName`**    | <code>'liveActivityPushToStartToken'</code>                                                                         |
+| **`listenerFunc`** | <code>(event: <a href="#liveactivitypushtostarttokenevent">LiveActivityPushToStartTokenEvent</a>) =&gt; void</code> |
+
+**Returns:** <code>Promise&lt;<a href="#pluginlistenerhandle">PluginListenerHandle</a>&gt;</code>
+
+**Since:** 7.1.0
+
+--------------------
+
+
 ### removeAllListeners()
 
 ```typescript
@@ -518,6 +573,45 @@ getActiveLiveActivities() => Promise<ActiveLiveActivitiesResult>
 Get list of active Live Activities/Timer Notifications.
 
 **Returns:** <code>Promise&lt;<a href="#activeliveactivitiesresult">ActiveLiveActivitiesResult</a>&gt;</code>
+
+**Since:** 7.1.0
+
+--------------------
+
+
+### listLiveActivities()
+
+```typescript
+listLiveActivities() => Promise<ListLiveActivitiesResult>
+```
+
+List known Live Activities with their ActivityKit state.
+
+Unlike `getActiveLiveActivities`, returns the system activity id and the state
+(`active`, `stale`, `ended`, `dismissed`), so an activity started remotely via
+push-to-start can be matched after a cold start.
+
+Only available on iOS.
+
+**Returns:** <code>Promise&lt;<a href="#listliveactivitiesresult">ListLiveActivitiesResult</a>&gt;</code>
+
+**Since:** 7.1.0
+
+--------------------
+
+
+### observePushToStartToken()
+
+```typescript
+observePushToStartToken() => Promise<void>
+```
+
+Start observing the global push-to-start token (iOS 17.2+).
+
+The token is delivered through the `liveActivityPushToStartToken` event,
+including on each rotation.
+
+Only available on iOS 17.2+.
 
 **Since:** 7.1.0
 
@@ -838,6 +932,26 @@ Event fired when a Live Activity timer ends.
 | **`activityId`** | <code>string</code> | The activity identifier that ended. |
 
 
+#### LiveActivityPushTokenEvent
+
+Event fired when a Live Activity push token is issued or rotated.
+
+| Prop                   | Type                | Description                                                |
+| ---------------------- | ------------------- | ---------------------------------------------------------- |
+| **`activityId`**       | <code>string</code> | Logical activity identifier passed to `startLiveActivity`. |
+| **`systemActivityId`** | <code>string</code> | ActivityKit system identifier (`Activity.id`).             |
+| **`token`**            | <code>string</code> | Hex-encoded APNs live-activity token.                      |
+
+
+#### LiveActivityPushToStartTokenEvent
+
+Event fired when the global push-to-start token is issued or rotated.
+
+| Prop        | Type                | Description                                       |
+| ----------- | ------------------- | ------------------------------------------------- |
+| **`token`** | <code>string</code> | Hex-encoded APNs push-to-start token (iOS 17.2+). |
+
+
 #### LiveActivityResult
 
 Result from starting a Live Activity.
@@ -899,6 +1013,26 @@ Result from getting active Live Activities.
 | Prop             | Type                  | Description                  |
 | ---------------- | --------------------- | ---------------------------- |
 | **`activities`** | <code>string[]</code> | List of active activity IDs. |
+
+
+#### ListLiveActivitiesResult
+
+Result from listing Live Activities.
+
+| Prop        | Type                                  |
+| ----------- | ------------------------------------- |
+| **`items`** | <code>LiveActivityDescriptor[]</code> |
+
+
+#### LiveActivityDescriptor
+
+Descriptor of a Live Activity known to ActivityKit.
+
+| Prop                   | Type                | Description                                                   |
+| ---------------------- | ------------------- | ------------------------------------------------------------- |
+| **`activityId`**       | <code>string</code> | Logical activity identifier passed to `startLiveActivity`.    |
+| **`systemActivityId`** | <code>string</code> | ActivityKit system identifier (`Activity.id`).                |
+| **`state`**            | <code>string</code> | ActivityKit state: `active`, `stale`, `ended` or `dismissed`. |
 
 
 ### Type Aliases

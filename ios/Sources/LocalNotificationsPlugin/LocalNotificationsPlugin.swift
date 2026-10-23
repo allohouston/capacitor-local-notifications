@@ -51,7 +51,9 @@ public class LocalNotificationsPlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "startLiveActivity", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "updateLiveActivity", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "endLiveActivity", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "getActiveLiveActivities", returnType: CAPPluginReturnPromise)
+        CAPPluginMethod(name: "getActiveLiveActivities", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "listLiveActivities", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "observePushToStartToken", returnType: CAPPluginReturnPromise)
     ]
     private let notificationDelegationHandler = LocalNotificationsHandler()
     private var activityTimers: [String: Timer] = [:]
@@ -835,10 +837,27 @@ public class LocalNotificationsPlugin: CAPPlugin, CAPBridgedPlugin {
                 let activity = try Activity<GenericTimerAttributes>.request(
                     attributes: attributes,
                     content: .init(state: initialState, staleDate: staleDate),
-                    pushType: nil
+                    // .token : l'Activity émet un token APNs permettant au serveur de la mettre à jour
+                    // (event: update) ou de la terminer (event: end) sans que l'app soit lancée.
+                    pushType: .token
                 )
 
                 CAPLog.print("[LN] ✅ Live Activity created successfully with id: \(activity.id)")
+
+                // Le token change pendant la vie de l'Activity : on le remonte à chaque émission.
+                // activityId = l'id logique JS, systemActivityId = Activity.id côté ActivityKit.
+                let logicalId = id
+                Task { [weak self] in
+                    for await tokenData in activity.pushTokenUpdates {
+                        let token = tokenData.map { String(format: "%02x", $0) }.joined()
+                        NSLog("[LN] 🔑 Live Activity push token for %@: %@", logicalId, token)
+                        self?.notifyListeners("liveActivityPushToken", data: [
+                            "activityId": logicalId,
+                            "systemActivityId": activity.id,
+                            "token": token
+                        ])
+                    }
+                }
                 if let timeToLive = call.getInt("timeToLive"), timeToLive > 0 {
                     DispatchQueue.main.async { [weak self] in
                         self?.activityTimers[id]?.invalidate()
@@ -1019,6 +1038,45 @@ public class LocalNotificationsPlugin: CAPPlugin, CAPBridgedPlugin {
             call.resolve([
                 "activities": []
             ])
+        }
+    }
+
+    /**
+     * Liste détaillée des Live Activities connues d'ActivityKit (active, stale, ended...).
+     * Sert à retrouver une Activity créée par push-to-start après un cold start.
+     */
+    @objc func listLiveActivities(_ call: CAPPluginCall) {
+        if #available(iOS 16.1, *) {
+            let items: [[String: String]] = Activity<GenericTimerAttributes>.activities.map { activity in
+                [
+                    "activityId": activity.attributes.id,
+                    "systemActivityId": activity.id,
+                    "state": activity.activityState.rawValue
+                ]
+            }
+            call.resolve(["items": items])
+        } else {
+            call.resolve(["items": []])
+        }
+    }
+
+    /**
+     * iOS 17.2+ : écoute le token push-to-start global (un par app, pas par Activity).
+     * Le serveur l'utilise pour créer une Live Activity alors que l'app est tuée.
+     * Le token est émis via l'event "liveActivityPushToStartToken" à chaque rotation.
+     */
+    @objc func observePushToStartToken(_ call: CAPPluginCall) {
+        if #available(iOS 17.2, *) {
+            Task { [weak self] in
+                for await tokenData in Activity<GenericTimerAttributes>.pushToStartTokenUpdates {
+                    let token = tokenData.map { String(format: "%02x", $0) }.joined()
+                    NSLog("[LN] 🔑 Push-to-start token: %@", token)
+                    self?.notifyListeners("liveActivityPushToStartToken", data: ["token": token])
+                }
+            }
+            call.resolve()
+        } else {
+            call.reject("Push-to-start tokens require iOS 17.2+")
         }
     }
 

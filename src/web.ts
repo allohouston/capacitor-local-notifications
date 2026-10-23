@@ -7,6 +7,7 @@ import type {
   EnabledResult,
   EndLiveActivityOptions,
   ListChannelsResult,
+  ListLiveActivitiesResult,
   LiveActivityOptions,
   LiveActivityResult,
   LocalNotificationSchema,
@@ -293,5 +294,15 @@ export class LocalNotificationsWeb
     return {
       activities: [],
     };
+  }
+
+  async listLiveActivities(): Promise<ListLiveActivitiesResult> {
+    return {
+      items: [],
+    };
+  }
+
+  async observePushToStartToken(): Promise<void> {
+    // Live Activities are iOS only.
   }
 }

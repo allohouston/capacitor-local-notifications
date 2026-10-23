@@ -210,6 +210,37 @@ export interface LocalNotificationsPlugin {
   ): Promise<PluginListenerHandle>;
 
   /**
+   * Listen for Live Activity push tokens.
+   *
+   * Emitted each time the per-activity APNs token changes after `startLiveActivity`
+   * (the activity is started with `pushType: .token`). Forward this token to the
+   * backend so it can update or end the activity remotely.
+   *
+   * Only available on iOS.
+   *
+   * @since 7.1.0
+   */
+  addListener(
+    eventName: 'liveActivityPushToken',
+    listenerFunc: (event: LiveActivityPushTokenEvent) => void,
+  ): Promise<PluginListenerHandle>;
+
+  /**
+   * Listen for the global push-to-start token (iOS 17.2+).
+   *
+   * Emitted after `observePushToStartToken()` each time the token rotates.
+   * The backend uses it to start a Live Activity while the app is not running.
+   *
+   * Only available on iOS 17.2+.
+   *
+   * @since 7.1.0
+   */
+  addListener(
+    eventName: 'liveActivityPushToStartToken',
+    listenerFunc: (event: LiveActivityPushToStartTokenEvent) => void,
+  ): Promise<PluginListenerHandle>;
+
+  /**
    * Remove all listeners for this plugin.
    *
    * @since 1.0.0
@@ -253,6 +284,31 @@ export interface LocalNotificationsPlugin {
    * @since 7.1.0
    */
   getActiveLiveActivities(): Promise<ActiveLiveActivitiesResult>;
+
+  /**
+   * List known Live Activities with their ActivityKit state.
+   *
+   * Unlike `getActiveLiveActivities`, returns the system activity id and the state
+   * (`active`, `stale`, `ended`, `dismissed`), so an activity started remotely via
+   * push-to-start can be matched after a cold start.
+   *
+   * Only available on iOS.
+   *
+   * @since 7.1.0
+   */
+  listLiveActivities(): Promise<ListLiveActivitiesResult>;
+
+  /**
+   * Start observing the global push-to-start token (iOS 17.2+).
+   *
+   * The token is delivered through the `liveActivityPushToStartToken` event,
+   * including on each rotation.
+   *
+   * Only available on iOS 17.2+.
+   *
+   * @since 7.1.0
+   */
+  observePushToStartToken(): Promise<void>;
 }
 
 /**
@@ -1498,4 +1554,65 @@ export interface LiveActivityEndedEvent {
    * The activity identifier that ended.
    */
   activityId: string;
+}
+
+/**
+ * Event fired when a Live Activity push token is issued or rotated.
+ *
+ * @since 7.1.0
+ */
+export interface LiveActivityPushTokenEvent {
+  /**
+   * Logical activity identifier passed to `startLiveActivity`.
+   */
+  activityId: string;
+  /**
+   * ActivityKit system identifier (`Activity.id`).
+   */
+  systemActivityId: string;
+  /**
+   * Hex-encoded APNs live-activity token.
+   */
+  token: string;
+}
+
+/**
+ * Event fired when the global push-to-start token is issued or rotated.
+ *
+ * @since 7.1.0
+ */
+export interface LiveActivityPushToStartTokenEvent {
+  /**
+   * Hex-encoded APNs push-to-start token (iOS 17.2+).
+   */
+  token: string;
+}
+
+/**
+ * Result from listing Live Activities.
+ *
+ * @since 7.1.0
+ */
+export interface ListLiveActivitiesResult {
+  items: LiveActivityDescriptor[];
+}
+
+/**
+ * Descriptor of a Live Activity known to ActivityKit.
+ *
+ * @since 7.1.0
+ */
+export interface LiveActivityDescriptor {
+  /**
+   * Logical activity identifier passed to `startLiveActivity`.
+   */
+  activityId: string;
+  /**
+   * ActivityKit system identifier (`Activity.id`).
+   */
+  systemActivityId: string;
+  /**
+   * ActivityKit state: `active`, `stale`, `ended` or `dismissed`.
+   */
+  state: string;
 }
