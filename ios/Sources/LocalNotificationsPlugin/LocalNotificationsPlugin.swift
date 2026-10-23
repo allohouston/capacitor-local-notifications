@@ -1048,10 +1048,19 @@ public class LocalNotificationsPlugin: CAPPlugin, CAPBridgedPlugin {
     @objc func listLiveActivities(_ call: CAPPluginCall) {
         if #available(iOS 16.1, *) {
             let items: [[String: String]] = Activity<GenericTimerAttributes>.activities.map { activity in
-                [
+                // ActivityState n'est pas RawRepresentable : mapping explicite.
+                let state: String
+                switch activity.activityState {
+                case .active: state = "active"
+                case .stale: state = "stale"
+                case .ended: state = "ended"
+                case .dismissed: state = "dismissed"
+                @unknown default: state = "unknown"
+                }
+                return [
                     "activityId": activity.attributes.id,
                     "systemActivityId": activity.id,
-                    "state": activity.activityState.rawValue
+                    "state": state
                 ]
             }
             call.resolve(["items": items])
