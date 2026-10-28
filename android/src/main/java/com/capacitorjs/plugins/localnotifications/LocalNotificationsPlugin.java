@@ -702,13 +702,23 @@ public class LocalNotificationsPlugin extends Plugin {
         }
 
         for (NotificationAction action : actionGroup) {
-            Intent actionIntent = buildLiveActivityActionIntent(activityId, notificationId, action.getId());
-            PendingIntent actionPendingIntent = PendingIntent.getActivity(
-                getContext(),
-                notificationId + action.getId().hashCode(),
-                actionIntent,
-                flags
-            );
+            boolean remoteEnd = "end".equals(action.getId()) && "endParking".equals(actionTypeId);
+            Intent actionIntent = remoteEnd
+                ? buildEndParkingBroadcastIntent(activityId)
+                : buildLiveActivityActionIntent(activityId, notificationId, action.getId());
+            PendingIntent actionPendingIntent = remoteEnd
+                ? PendingIntent.getBroadcast(
+                    getContext(),
+                    notificationId + action.getId().hashCode(),
+                    actionIntent,
+                    immutableFlags()
+                )
+                : PendingIntent.getActivity(
+                    getContext(),
+                    notificationId + action.getId().hashCode(),
+                    actionIntent,
+                    flags
+                );
 
             NotificationCompat.Action.Builder actionBuilder = new NotificationCompat.Action.Builder(
                 android.R.drawable.ic_menu_send, // Default icon
@@ -718,6 +728,21 @@ public class LocalNotificationsPlugin extends Plugin {
 
             builder.addAction(actionBuilder.build());
         }
+    }
+
+    private int immutableFlags() {
+        int flags = PendingIntent.FLAG_UPDATE_CURRENT;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            flags = flags | PendingIntent.FLAG_IMMUTABLE;
+        }
+        return flags;
+    }
+
+    private Intent buildEndParkingBroadcastIntent(String activityId) {
+        Intent intent = new Intent(getContext().getPackageName() + ".END_PARKING");
+        intent.setPackage(getContext().getPackageName());
+        intent.putExtra("liveActivityId", activityId);
+        return intent;
     }
 
     /**

@@ -418,13 +418,11 @@ public class TimerProgressService extends Service {
         }
 
         for (NotificationAction action : actionGroup) {
-            Intent actionIntent = buildActionIntent(action.getId());
-            PendingIntent actionPendingIntent = PendingIntent.getActivity(
-                this,
-                currentNotificationId + action.getId().hashCode(),
-                actionIntent,
-                flags
-            );
+            boolean remoteEnd = isRemoteEndAction(action.getId());
+            Intent actionIntent = remoteEnd ? buildEndParkingBroadcastIntent() : buildActionIntent(action.getId());
+            PendingIntent actionPendingIntent = remoteEnd
+                ? PendingIntent.getBroadcast(this, currentNotificationId + action.getId().hashCode(), actionIntent, immutableFlags())
+                : PendingIntent.getActivity(this, currentNotificationId + action.getId().hashCode(), actionIntent, flags);
 
             NotificationCompat.Action.Builder actionBuilder = new NotificationCompat.Action.Builder(
                 android.R.drawable.ic_menu_send,
@@ -434,6 +432,26 @@ public class TimerProgressService extends Service {
 
             builder.addAction(actionBuilder.build());
         }
+    }
+
+    private boolean isRemoteEndAction(String actionId) {
+        return "end".equals(actionId) && "endParking".equals(currentActionTypeId);
+    }
+
+    private int immutableFlags() {
+        int flags = PendingIntent.FLAG_UPDATE_CURRENT;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            flags = flags | PendingIntent.FLAG_IMMUTABLE;
+        }
+        return flags;
+    }
+
+    /** Action propre à l'app. Le receiver EndParkingReceiver clôture sans ouvrir l'activité. */
+    private Intent buildEndParkingBroadcastIntent() {
+        Intent intent = new Intent(getPackageName() + ".END_PARKING");
+        intent.setPackage(getPackageName());
+        intent.putExtra("liveActivityId", currentActivityId);
+        return intent;
     }
 
     private Intent buildActionIntent(String actionId) {
