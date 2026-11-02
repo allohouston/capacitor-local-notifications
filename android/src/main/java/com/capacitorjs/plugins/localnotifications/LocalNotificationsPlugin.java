@@ -428,7 +428,8 @@ public class LocalNotificationsPlugin extends Plugin {
                     config.timer,
                     config.startTimestamp,
                     config.maxDurationMs,
-                    false // Le service s'est arrêté, plus besoin de le stopper
+                    false, // Le service s'est arrêté, plus besoin de le stopper
+                    config.smallIconRes
                 )
             );
         }
