@@ -46,6 +46,7 @@ public class TimerProgressService extends Service {
     public static final String EXTRA_ACTION_TYPE_ID = "actionTypeId";
     public static final String EXTRA_START_TIMESTAMP = "startTimestamp";
     public static final String EXTRA_MAX_DURATION_MS = "maxDurationMs";
+    public static final String EXTRA_SMALL_ICON_RES = "smallIconRes";
 
     private Handler handler;
     private Runnable updateRunnable;
@@ -65,6 +66,7 @@ public class TimerProgressService extends Service {
     private long startTimestamp;
     private long maxDurationMs;
     private boolean hasExceeded = false;
+    private int currentSmallIconRes = 0;
 
     @Override
     public void onCreate() {
@@ -103,6 +105,7 @@ public class TimerProgressService extends Service {
             currentActionTypeId = intent.getStringExtra(EXTRA_ACTION_TYPE_ID);
             startTimestamp = intent.getLongExtra(EXTRA_START_TIMESTAMP, System.currentTimeMillis());
             maxDurationMs = intent.getLongExtra(EXTRA_MAX_DURATION_MS, 0);
+            currentSmallIconRes = intent.getIntExtra(EXTRA_SMALL_ICON_RES, 0);
             hasExceeded = false;
 
             Logger.debug(
@@ -180,7 +183,7 @@ public class TimerProgressService extends Service {
             new NotificationCompat.Builder(this, channelId)
                 .setContentTitle(currentTitle)
                 .setContentText(currentMessage != null ? currentMessage : "")
-                .setSmallIcon(android.R.drawable.ic_dialog_info)
+                .setSmallIcon(NotificationIconHelper.effectiveSmallIcon(currentSmallIconRes, false))
                 .setPriority(NotificationCompat.PRIORITY_HIGH)
                 .setOngoing(true)
                 .setAutoCancel(false)
@@ -224,6 +227,7 @@ public class TimerProgressService extends Service {
             .putLong("startTimestamp", startTimestamp)
             .putLong("maxDurationMs", maxDurationMs)
             .putBoolean("hasExceeded", hasExceeded)
+            .putInt("smallIconRes", currentSmallIconRes)
             .apply();
     }
 
@@ -332,7 +336,7 @@ public class TimerProgressService extends Service {
         NotificationCompat.Builder builder = new NotificationCompat.Builder(this, alertChannelId)
             .setContentTitle(alertTitle)
             .setContentText(alertMessage)
-            .setSmallIcon(android.R.drawable.ic_dialog_alert)
+            .setSmallIcon(NotificationIconHelper.effectiveSmallIcon(currentSmallIconRes, true))
             .setOngoing(true)
             .setAutoCancel(false)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
@@ -510,6 +514,32 @@ public class TimerProgressService extends Service {
         long startTimestamp,
         long maxDurationMs
     ) {
+        startTimer(
+            context,
+            activityId,
+            notificationId,
+            title,
+            message,
+            channelId,
+            actionTypeId,
+            startTimestamp,
+            maxDurationMs,
+            0
+        );
+    }
+
+    public static void startTimer(
+        Context context,
+        String activityId,
+        int notificationId,
+        String title,
+        String message,
+        String channelId,
+        String actionTypeId,
+        long startTimestamp,
+        long maxDurationMs,
+        int smallIconRes
+    ) {
         Intent intent = new Intent(context, TimerProgressService.class);
         intent.setAction(ACTION_START_TIMER);
         intent.putExtra(EXTRA_ACTIVITY_ID, activityId);
@@ -520,6 +550,7 @@ public class TimerProgressService extends Service {
         intent.putExtra(EXTRA_ACTION_TYPE_ID, actionTypeId);
         intent.putExtra(EXTRA_START_TIMESTAMP, startTimestamp);
         intent.putExtra(EXTRA_MAX_DURATION_MS, maxDurationMs);
+        intent.putExtra(EXTRA_SMALL_ICON_RES, smallIconRes);
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             context.startForegroundService(intent);

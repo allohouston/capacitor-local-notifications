@@ -1378,7 +1378,11 @@ export interface LiveActivityOptions {
   channelId?: string;
 
   /**
-   * Small icon for Android notifications.
+   * Small icon for Android timer / Live Activity notifications (status bar and notification).
+   * Optional. Resource base name without extension, resolved in `res/drawable` then `res/mipmap`.
+   * When omitted or not found, the timer uses the system information icon and the exceeded
+   * alert uses the system alert icon. When set, both the running timer and exceeded alert use
+   * this resource. Ignored on iOS.
    */
   smallIcon?: string;
 

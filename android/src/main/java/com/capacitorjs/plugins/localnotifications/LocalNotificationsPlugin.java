@@ -64,6 +64,7 @@ public class LocalNotificationsPlugin extends Plugin {
         long startTimestamp;
         long maxDurationMs;
         boolean hasProgressService;
+        int smallIconRes;
 
         LiveActivityConfig(
             int notificationId,
@@ -74,7 +75,8 @@ public class LocalNotificationsPlugin extends Plugin {
             JSObject timer,
             long startTimestamp,
             long maxDurationMs,
-            boolean hasProgressService
+            boolean hasProgressService,
+            int smallIconRes
         ) {
             this.notificationId = notificationId;
             this.title = title;
@@ -85,6 +87,7 @@ public class LocalNotificationsPlugin extends Plugin {
             this.startTimestamp = startTimestamp;
             this.maxDurationMs = maxDurationMs;
             this.hasProgressService = hasProgressService;
+            this.smallIconRes = smallIconRes;
         }
     }
 
@@ -493,10 +496,12 @@ public class LocalNotificationsPlugin extends Plugin {
         // Check if initial vibration is requested
         Boolean shouldVibrate = call.getBoolean("vibrate", true);
 
+        int smallIconRes = NotificationIconHelper.resolveSmallIconResource(getContext(), call.getString("smallIcon"));
+
         NotificationCompat.Builder builder = new NotificationCompat.Builder(getContext(), channelId)
             .setContentTitle(title)
             .setContentText(message != null ? message : "")
-            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setSmallIcon(NotificationIconHelper.effectiveSmallIcon(smallIconRes, false))
             .setOngoing(true)
             .setAutoCancel(false)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
@@ -560,7 +565,8 @@ public class LocalNotificationsPlugin extends Plugin {
                         channelId,
                         actionTypeId,
                         startTimestamp,
-                        maxDurationMs
+                        maxDurationMs,
+                        smallIconRes
                     );
                 }
             }
@@ -669,7 +675,8 @@ public class LocalNotificationsPlugin extends Plugin {
                 timer,
                 startTimestamp,
                 maxDurationMs,
-                hasProgressService
+                hasProgressService,
+                smallIconRes
             )
         );
 
@@ -815,7 +822,7 @@ public class LocalNotificationsPlugin extends Plugin {
         NotificationCompat.Builder builder = new NotificationCompat.Builder(getContext(), config.channelId)
             .setContentTitle(finalTitle)
             .setContentText(finalMessage)
-            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setSmallIcon(NotificationIconHelper.effectiveSmallIcon(config.smallIconRes, false))
             .setOngoing(true)
             .setAutoCancel(false)
             .setPriority(NotificationCompat.PRIORITY_HIGH);
