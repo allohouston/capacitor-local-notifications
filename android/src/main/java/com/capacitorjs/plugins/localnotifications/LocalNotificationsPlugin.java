@@ -150,31 +150,8 @@ public class LocalNotificationsPlugin extends Plugin {
         }
     }
 
-    @Override
-    protected void handleOnDestroy() {
-        super.handleOnDestroy();
-        // End all Live Activities when app is destroyed
-        endAllLiveActivities();
-    }
-
-    /**
-     * End all active Live Activities.
-     * Called when the app is destroyed to clean up ongoing notifications.
-     */
-    private void endAllLiveActivities() {
-        // Stop the timer progress service
-        TimerProgressService.stopTimer(getContext());
-
-        // Cancel all ongoing notifications
-        for (String activityId : activeLiveActivities.keySet()) {
-            LiveActivityConfig config = activeLiveActivities.get(activityId);
-            if (config != null) {
-                notificationManager.cancel(config.notificationId);
-                cancelTimerEndAlarm(activityId);
-            }
-        }
-        activeLiveActivities.clear();
-    }
+    // Pas de handleOnDestroy : le chrono (TimerProgressService) et ses notifications survivent à la destruction
+    // de l'Activity (bouton retour, « ne pas conserver les activités ») ; seul le serveur ou l'utilisateur y met fin.
 
     /**
      * Schedule a notification call from JavaScript
@@ -939,25 +916,14 @@ public class LocalNotificationsPlugin extends Plugin {
 
     /**
      * Create a Live Activity notification channel if it doesn't exist.
-     * Also recreates the channel if it has wrong importance (needed for vibration).
+     * An existing channel is never deleted: Android throws SecurityException when a foreground service
+     * uses it, and restores the user's settings when a channel is recreated with the same id.
      * @param channelId The channel ID to create (e.g., "ongoing", "live_activity")
      */
     private void createLiveActivityChannelIfNeeded(String channelId) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             String actualChannelId = channelId != null ? channelId : LIVE_ACTIVITY_CHANNEL_ID;
             android.app.NotificationChannel existingChannel = notificationManager.getNotificationChannel(actualChannelId);
-
-            // Check if channel needs to be recreated due to wrong importance
-            // IMPORTANCE_HIGH (4) is required for vibration to work
-            if (existingChannel != null && existingChannel.getImportance() < NotificationManager.IMPORTANCE_HIGH) {
-                // Delete the old channel with wrong importance
-                notificationManager.deleteNotificationChannel(actualChannelId);
-                existingChannel = null;
-                com.getcapacitor.Logger.debug(
-                    com.getcapacitor.Logger.tags("LN"),
-                    "Deleted channel " + actualChannelId + " to recreate with higher importance"
-                );
-            }
 
             if (existingChannel == null) {
                 android.app.NotificationChannel channel = new android.app.NotificationChannel(

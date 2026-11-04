@@ -145,16 +145,9 @@ public class TimerProgressService extends Service {
     private void createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             String channelId = currentChannelId != null ? currentChannelId : DEFAULT_CHANNEL_ID;
+            // Un canal existant n'est jamais supprimé : Android lève SecurityException si le service l'utilise
+            // en avant-plan, et restaure de toute façon les réglages de l'utilisateur à la recréation.
             NotificationChannel existingChannel = notificationManager.getNotificationChannel(channelId);
-
-            // Check if channel needs to be recreated due to wrong importance
-            // IMPORTANCE_HIGH (4) is required for vibration to work
-            if (existingChannel != null && existingChannel.getImportance() < NotificationManager.IMPORTANCE_HIGH) {
-                // Delete the old channel with wrong importance
-                notificationManager.deleteNotificationChannel(channelId);
-                existingChannel = null;
-                Logger.debug(Logger.tags("LN"), TAG + ": Deleted channel " + channelId + " to recreate with higher importance");
-            }
 
             if (existingChannel == null) {
                 NotificationChannel channel = new NotificationChannel(
@@ -388,14 +381,8 @@ public class TimerProgressService extends Service {
      */
     private void ensureAlertChannel(String channelId) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            // Pas de suppression d'un canal existant : voir createNotificationChannel.
             NotificationChannel existingChannel = notificationManager.getNotificationChannel(channelId);
-
-            // Si le canal existe avec une importance insuffisante, le recréer
-            if (existingChannel != null && existingChannel.getImportance() < NotificationManager.IMPORTANCE_HIGH) {
-                notificationManager.deleteNotificationChannel(channelId);
-                existingChannel = null;
-                Logger.debug(Logger.tags("LN"), TAG + ": Deleted alert channel " + channelId + " to recreate with higher importance");
-            }
 
             if (existingChannel == null) {
                 NotificationChannel channel = new NotificationChannel(channelId, "Alertes", NotificationManager.IMPORTANCE_HIGH);
