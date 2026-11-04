@@ -1619,4 +1619,11 @@ export interface LiveActivityDescriptor {
    * ActivityKit state: `active`, `stale`, `ended` or `dismissed`.
    */
   state: string;
+  /**
+   * Hex-encoded APNs live-activity token, when ActivityKit already has one.
+   * Covers activities started by push-to-start or before an app relaunch.
+   *
+   * @since 7.2.0
+   */
+  pushToken?: string;
 }

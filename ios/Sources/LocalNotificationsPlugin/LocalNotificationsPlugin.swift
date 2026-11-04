@@ -57,6 +57,8 @@ public class LocalNotificationsPlugin: CAPPlugin, CAPBridgedPlugin {
     ]
     private let notificationDelegationHandler = LocalNotificationsHandler()
     private var activityTimers: [String: Timer] = [:]
+    /// Activity.id dont le token push est déjà observé (accès sur le main thread uniquement).
+    private var observedTokenActivityIds = Set<String>()
 
     override public func load() {
         self.bridge?.notificationRouter.localNotificationHandler = self.notificationDelegationHandler
@@ -75,6 +77,57 @@ public class LocalNotificationsPlugin: CAPPlugin, CAPBridgedPlugin {
         // This handles cold start case where actions arrive before JS listeners are ready
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
             self?.processPendingLiveActivityActions()
+        }
+
+        if #available(iOS 16.1, *) {
+            observeAllLiveActivityPushTokens()
+        }
+    }
+
+    /**
+     * Les Live Activities démarrées par push-to-start, ou par l'app avant un relaunch, ne passent pas
+     * par startLiveActivity : sans cette observation, leur token n'est jamais remonté et le serveur
+     * ne peut ni les mettre à jour ni les terminer.
+     */
+    @available(iOS 16.1, *)
+    private func observeAllLiveActivityPushTokens() {
+        Task { [weak self] in
+            for activity in Activity<GenericTimerAttributes>.activities {
+                self?.observePushToken(of: activity)
+            }
+            for await activity in Activity<GenericTimerAttributes>.activityUpdates {
+                self?.observePushToken(of: activity)
+            }
+        }
+    }
+
+    /**
+     * Émet "liveActivityPushToken" à chaque token (il change pendant la vie de l'Activity), une seule
+     * observation par Activity. Retenu jusqu'à l'abonnement JS : au lancement en arrière-plan,
+     * le token peut arriver avant que le listener soit posé.
+     * activityId = l'id logique (attributes.id), systemActivityId = Activity.id côté ActivityKit.
+     */
+    @available(iOS 16.1, *)
+    private func observePushToken(of activity: Activity<GenericTimerAttributes>) {
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self, self.observedTokenActivityIds.insert(activity.id).inserted else {
+                return
+            }
+            let logicalId = activity.attributes.id
+            Task { [weak self] in
+                for await tokenData in activity.pushTokenUpdates {
+                    let token = tokenData.map { String(format: "%02x", $0) }.joined()
+                    NSLog("[LN] 🔑 Live Activity push token updated for %@", logicalId)
+                    self?.notifyListeners("liveActivityPushToken", data: [
+                        "activityId": logicalId,
+                        "systemActivityId": activity.id,
+                        "token": token
+                    ], retainUntilConsumed: true)
+                }
+                DispatchQueue.main.async { [weak self] in
+                    self?.observedTokenActivityIds.remove(activity.id)
+                }
+            }
         }
     }
 
@@ -844,20 +897,7 @@ public class LocalNotificationsPlugin: CAPPlugin, CAPBridgedPlugin {
 
                 CAPLog.print("[LN] ✅ Live Activity created successfully with id: \(activity.id)")
 
-                // Le token change pendant la vie de l'Activity : on le remonte à chaque émission.
-                // activityId = l'id logique JS, systemActivityId = Activity.id côté ActivityKit.
-                let logicalId = id
-                Task { [weak self] in
-                    for await tokenData in activity.pushTokenUpdates {
-                        let token = tokenData.map { String(format: "%02x", $0) }.joined()
-                        NSLog("[LN] 🔑 Live Activity push token for %@: %@", logicalId, token)
-                        self?.notifyListeners("liveActivityPushToken", data: [
-                            "activityId": logicalId,
-                            "systemActivityId": activity.id,
-                            "token": token
-                        ])
-                    }
-                }
+                observePushToken(of: activity)
                 if let timeToLive = call.getInt("timeToLive"), timeToLive > 0 {
                     DispatchQueue.main.async { [weak self] in
                         self?.activityTimers[id]?.invalidate()
@@ -1057,11 +1097,15 @@ public class LocalNotificationsPlugin: CAPPlugin, CAPBridgedPlugin {
                 case .dismissed: state = "dismissed"
                 @unknown default: state = "unknown"
                 }
-                return [
+                var item = [
                     "activityId": activity.attributes.id,
                     "systemActivityId": activity.id,
                     "state": state
                 ]
+                if let tokenData = activity.pushToken {
+                    item["pushToken"] = tokenData.map { String(format: "%02x", $0) }.joined()
+                }
+                return item
             }
             call.resolve(["items": items])
         } else {

@@ -1028,11 +1028,12 @@ Result from listing Live Activities.
 
 Descriptor of a Live Activity known to ActivityKit.
 
-| Prop                   | Type                | Description                                                   |
-| ---------------------- | ------------------- | ------------------------------------------------------------- |
-| **`activityId`**       | <code>string</code> | Logical activity identifier passed to `startLiveActivity`.    |
-| **`systemActivityId`** | <code>string</code> | ActivityKit system identifier (`Activity.id`).                |
-| **`state`**            | <code>string</code> | ActivityKit state: `active`, `stale`, `ended` or `dismissed`. |
+| Prop                   | Type                | Description                                                                                                                                   | Since |
+| ---------------------- | ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- | ----- |
+| **`activityId`**       | <code>string</code> | Logical activity identifier passed to `startLiveActivity`.                                                                                    |       |
+| **`systemActivityId`** | <code>string</code> | ActivityKit system identifier (`Activity.id`).                                                                                                |       |
+| **`state`**            | <code>string</code> | ActivityKit state: `active`, `stale`, `ended` or `dismissed`.                                                                                 |       |
+| **`pushToken`**        | <code>string</code> | Hex-encoded APNs live-activity token, when ActivityKit already has one. Covers activities started by push-to-start or before an app relaunch. | 7.2.0 |
 
 
 ### Type Aliases
