@@ -956,7 +956,8 @@ public class LocalNotificationsPlugin: CAPPlugin, CAPBridgedPlugin {
 
                 for activity in Activity<GenericTimerAttributes>.activities {
                     NSLog("[LN] 🔄 Checking activity: %@ vs %@", activity.attributes.id, id)
-                    if activity.attributes.id == id {
+                    // Une Activity terminée reste listée un moment : seule une Activity encore affichée est mise à jour.
+                    if activity.attributes.id == id && (activity.activityState == .active || activity.activityState == .stale) {
                         NSLog("[LN] ✅ Found matching activity, updating...")
                         // Merge new values with existing values (instead of replacing)
                         var mergedValues = activity.content.state.values
@@ -1040,19 +1041,22 @@ public class LocalNotificationsPlugin: CAPPlugin, CAPBridgedPlugin {
 
         if #available(iOS 16.1, *) {
             Task {
-                for activity in Activity<GenericTimerAttributes>.activities {
-                    if activity.attributes.id == id {
-                        do {
-                            try await activity.end(nil, dismissalPolicy: .immediate)
-                        } catch {
-                            NSLog("[LN] ⚠️ endLiveActivity failed (extension process likely dead): %@", error.localizedDescription)
-                        }
-                        call.resolve()
-                        return
+                // Plusieurs Activities peuvent porter le même id (un compte à rebours par arrêt, des Activities
+                // terminées encore listées) : toutes celles encore affichées sont terminées, pas seulement la première.
+                let matching = Activity<GenericTimerAttributes>.activities.filter {
+                    $0.attributes.id == id && ($0.activityState == .active || $0.activityState == .stale)
+                }
+                for activity in matching {
+                    do {
+                        try await activity.end(nil, dismissalPolicy: .immediate)
+                    } catch {
+                        NSLog("[LN] ⚠️ endLiveActivity failed (extension process likely dead): %@", error.localizedDescription)
                     }
                 }
-                // Also try to cancel as regular notification
-                UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [id])
+                if matching.isEmpty {
+                    // Also try to cancel as regular notification
+                    UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [id])
+                }
                 call.resolve()
             }
         } else {
